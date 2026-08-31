@@ -8,6 +8,7 @@ using Polly.Retry;
 
 namespace AdPlay.Api.Payments
 {
+    // Q7. POST /api/payment
     [ApiController]
     [Route("api/payment")]
     public class PaymentController : ControllerBase
@@ -25,10 +26,10 @@ namespace AdPlay.Api.Payments
             [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
         {
             if (string.IsNullOrWhiteSpace(idempotencyKey))
-                return BadRequest(new { error = "Idempotency-Key header is required." }); 
+                return BadRequest(new { error = "Idempotency-Key header is required." }); // 400
 
             if (request == null || request.Amount <= 0 || string.IsNullOrWhiteSpace(request.Currency))
-                return UnprocessableEntity(new { error = "Invalid payment request." }); 
+                return UnprocessableEntity(new { error = "Invalid payment request." }); // 422
 
             var result = await _paymentService.ProcessPaymentAsync(idempotencyKey, request);
 
@@ -85,7 +86,6 @@ namespace AdPlay.Api.Payments
         Task<PaymentOperationResult> ProcessPaymentAsync(string idempotencyKey, PaymentRequest request);
     }
 
-    // Minimal abstraction over a distributed lock provider (e.g. RedLock.net over Redis).
     public interface IDistributedLockProvider
     {
         Task<IAsyncDisposable?> AcquireAsync(string resource, TimeSpan expiry, TimeSpan wait);
@@ -121,9 +121,8 @@ namespace AdPlay.Api.Payments
             _gatewayClient = gatewayClient;
             _logger = logger;
 
-            // Exponential backoff: 200ms, 400ms, 800ms. Only retry on transient
+
             // network/timeout errors -- never retry on a definite gateway decline.
-            // Includes HttpRequestException (connection, DNS failures) and TimeoutException.
             _retryPolicy = Policy
                 .Handle<HttpRequestException>()
                 .Or<TimeoutException>()
@@ -146,9 +145,7 @@ namespace AdPlay.Api.Payments
                     ? PaymentOperationResult.AlreadyProcessed(existing)
                     : PaymentOperationResult.InProgress();
 
-            // 2. Distributed lock scoped to the idempotency key, so only one
-            //    request -- even across multiple app instances -- processes
-            //    this specific payment at a time.
+            // Distributed lock scoped to the idempotency key
             await using var @lock = await _lockProvider.AcquireAsync(
                 resource: $"payment:{idempotencyKey}",
                 expiry: TimeSpan.FromSeconds(30),
@@ -157,18 +154,13 @@ namespace AdPlay.Api.Payments
             if (@lock == null)
                 return PaymentOperationResult.InProgress(); // another request holds the lock
 
-            // 3. Re-check inside the lock (double-checked locking) in case another
-            //    request finished while we were waiting to acquire it.
             existing = await _context.Payments.FirstOrDefaultAsync(p => p.IdempotencyKey == idempotencyKey);
             if (existing != null)
                 return existing.Status == PaymentStatus.Completed
                     ? PaymentOperationResult.AlreadyProcessed(existing)
                     : PaymentOperationResult.InProgress();
 
-            // 4. Persist a "Processing" row first, inside its own short transaction.
-            //    IdempotencyKey has a UNIQUE DB constraint as defense-in-depth: even
-            //    if two requests somehow slipped past the lock, the DB rejects the
-            //    second insert instead of allowing a duplicate charge.
+            // Persist a "Processing" row first, inside its own short transaction.
             var payment = new Payment
             {
                 Id = Guid.NewGuid(),
@@ -193,8 +185,7 @@ namespace AdPlay.Api.Payments
                 return PaymentOperationResult.InProgress(); // unique constraint hit = concurrent duplicate
             }
 
-            // 5. Call the external gateway with retry, outside the DB transaction --
-            //    never hold a DB transaction open across a network call.
+            // Call the external gateway with retry, outside the DB transaction -- never hold a DB transaction open across a network call.
             try
             {
                 var gatewayResult = await _retryPolicy.ExecuteAsync(() =>
@@ -219,6 +210,3 @@ namespace AdPlay.Api.Payments
         }
     }
 }
-
-// DB schema note:
-// CREATE UNIQUE INDEX UX_Payments_IdempotencyKey ON Payments (IdempotencyKey);
