@@ -8,10 +8,6 @@ using Polly.Retry;
 
 namespace AdPlay.Api.Payments
 {
-    // Q7. POST /api/payment
-    // Requirements covered: idempotency key, retry mechanism, transaction management,
-    // distributed lock, duplicate payment prevention, proper HTTP status codes.
-
     [ApiController]
     [Route("api/payment")]
     public class PaymentController : ControllerBase
@@ -29,10 +25,10 @@ namespace AdPlay.Api.Payments
             [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
         {
             if (string.IsNullOrWhiteSpace(idempotencyKey))
-                return BadRequest(new { error = "Idempotency-Key header is required." }); // 400
+                return BadRequest(new { error = "Idempotency-Key header is required." }); 
 
             if (request == null || request.Amount <= 0 || string.IsNullOrWhiteSpace(request.Currency))
-                return UnprocessableEntity(new { error = "Invalid payment request." }); // 422
+                return UnprocessableEntity(new { error = "Invalid payment request." }); 
 
             var result = await _paymentService.ProcessPaymentAsync(idempotencyKey, request);
 

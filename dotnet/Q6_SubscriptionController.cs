@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace AdPlay.Api.Controllers
 {
-
+    // Q6. Prevent duplicate subscription under 1,000 concurrent requests.
     public class SubscriptionController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -25,7 +25,7 @@ namespace AdPlay.Api.Controllers
             if (request == null || string.IsNullOrWhiteSpace(request.Mobile))
                 return BadRequest(new { error = "Mobile number is required." });
 
-
+            // Basic validation: mobile should be 10-15 digits (adjust per your region)
             if (!System.Text.RegularExpressions.Regex.IsMatch(request.Mobile, @"^\d{10,15}$"))
                 return BadRequest(new { error = "Mobile number must be 10-15 digits." });
 
@@ -46,6 +46,7 @@ namespace AdPlay.Api.Controllers
                         return NotFound(new { error = "User not found." });
                     }
 
+                    // Either already subscribed, or a concurrent request just won the race.
                     _logger.LogInformation("User already subscribed: {Mobile}", request.Mobile);
                     return Conflict(new { error = "User is already subscribed." });
                 }
@@ -55,46 +56,6 @@ namespace AdPlay.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Subscription failed for {Mobile}", request.Mobile);
-                return StatusCode(500, new { error = "An unexpected error occurred." });
-            }
-        }
-
-        [HttpPost("api/subscriptions/legacy")]
-        public async Task<IActionResult> SubscribeLegacy([FromBody] SubscriptionRequest request)
-        {
-            if (request == null || string.IsNullOrWhiteSpace(request.Mobile))
-                return BadRequest(new { error = "Mobile number is required." });
-
-            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
-            try
-            {
-                var user = await _context.Users
-                    .FromSqlInterpolated($"SELECT * FROM Users WHERE Mobile = {request.Mobile} FOR UPDATE")
-                    .FirstOrDefaultAsync();
-
-                if (user == null)
-                {
-                    await transaction.RollbackAsync();
-                    return NotFound(new { error = "User not found." });
-                }
-
-                if (user.IsSubscribed)
-                {
-                    await transaction.RollbackAsync();
-                    return Conflict(new { error = "User is already subscribed." });
-                }
-
-                user.IsSubscribed = true;
-                user.SubscribedAtUtc = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                return Ok(new { message = "Subscribed successfully." });
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
                 _logger.LogError(ex, "Subscription failed for {Mobile}", request.Mobile);
                 return StatusCode(500, new { error = "An unexpected error occurred." });
             }
