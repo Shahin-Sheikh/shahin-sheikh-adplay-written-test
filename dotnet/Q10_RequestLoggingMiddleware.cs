@@ -11,7 +11,6 @@ using Microsoft.Extensions.Logging;
 namespace AdPlay.Api.Middleware
 {
     // Q10. Middleware that logs request body, response body, execution time,
-    // correlation ID, and unhandled exceptions -- without breaking the pipeline.
     public class RequestLoggingMiddleware
     {
         private readonly RequestDelegate _next;
@@ -45,8 +44,6 @@ namespace AdPlay.Api.Middleware
             {
                 var requestBody = await ReadRequestBodyAsync(context.Request);
 
-                // Swap in a buffer so we can read the response body after the
-                // pipeline runs, then copy it back to the real stream.
                 var originalResponseBodyStream = context.Response.Body;
                 await using var responseBuffer = new MemoryStream();
                 context.Response.Body = responseBuffer;
@@ -64,9 +61,6 @@ namespace AdPlay.Api.Middleware
                         "Unhandled exception. CorrelationId={CorrelationId} Path={Path} Method={Method} ElapsedMs={ElapsedMs}",
                         correlationId, context.Request.Path, context.Request.Method, stopwatch.ElapsedMilliseconds);
 
-                    // Re-throw so a global exception-handling middleware / status
-                    // code page further up the pipeline still runs. We only log
-                    // here, we don't swallow the error.
                     throw;
                 }
                 finally
@@ -102,34 +96,31 @@ namespace AdPlay.Api.Middleware
             return body;
         }
 
-        /// <summary>
-        /// Masks sensitive data (passwords, tokens, credit cards, SSN) in request/response bodies
-        /// to prevent leaking secrets into logs.
-        /// </summary>
+        /// Masks sensitive data in request/response bodies
         private static string MaskSensitiveData(string value)
         {
             if (string.IsNullOrEmpty(value))
                 return value;
 
-            // Mask password fields: "password": "actual_value" -> "password": "***"
+            // Mask password fields
             value = Regex.Replace(value,
                 @"([""']?password[""']?\s*[:=]\s*[""'])([^""']+)([""'])",
                 "$1***$3",
                 RegexOptions.IgnoreCase);
 
-            // Mask credit card numbers: "cardNumber": "1234..." -> "cardNumber": "****"
+            // Mask credit card numbers
             value = Regex.Replace(value,
                 @"([""']?card(?:Number|No|number)[""']?\s*[:=]\s*[""'])([^""']+)([""'])",
                 "$1****$3",
                 RegexOptions.IgnoreCase);
 
-            // Mask authentication tokens: "token": "eyJ..." -> "token": "***"
+            // Mask authentication tokens
             value = Regex.Replace(value,
                 @"([""']?(?:token|accessToken|refreshToken|authorization)[""']?\s*[:=]\s*[""'])([^""']+)([""'])",
                 "$1***$3",
                 RegexOptions.IgnoreCase);
 
-            // Mask SSN: "ssn": "123-45-6789" -> "ssn": "***-**-****"
+            // Mask SSN
             value = Regex.Replace(value,
                 @"([""']?ssn[""']?\s*[:=]\s*[""'])(\d{3})-(\d{2})-(\d{4})([""'])",
                 "$1***-**-****$5",
@@ -148,6 +139,3 @@ namespace AdPlay.Api.Middleware
             => app.UseMiddleware<RequestLoggingMiddleware>();
     }
 }
-
-// Registration in Program.cs, placed early in the pipeline so it wraps everything:
-//   app.UseRequestLogging();
