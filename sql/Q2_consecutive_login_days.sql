@@ -1,7 +1,4 @@
 -- Q2. Users who logged in for 7+ consecutive days
--- Classic "gaps and islands" problem: subtract a running row number (in days)
--- from the login date. Consecutive dates produce the same constant "GroupKey".
-
 WITH DistinctLogins AS (
     SELECT DISTINCT UserId, LoginDate
     FROM UserLogin

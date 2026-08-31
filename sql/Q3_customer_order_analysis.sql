@@ -1,6 +1,4 @@
 -- Q3. For each order: current amount, previous amount, difference, running total per customer.
--- Single query using LAG() and a windowed SUM().
-
 SELECT
     Id,
     CustomerId,

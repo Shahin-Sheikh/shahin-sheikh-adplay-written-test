@@ -23,9 +23,7 @@ namespace AdPlay.Api.Linq
 
     public static class Q12_DepartmentStatisticsExample
     {
-        // Q12. LINQ has no built-in Median, so it's computed manually inside the
-        // Select projection: sort each department's salaries, then take the
-        // middle value (or the average of the two middle values for an even count).
+        // Q12. Department Statistics
         public static List<DepartmentStatistics> Summarize(List<Employee> employees)
         {
             return employees

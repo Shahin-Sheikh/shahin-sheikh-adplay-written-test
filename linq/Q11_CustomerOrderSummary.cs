@@ -23,7 +23,7 @@ namespace AdPlay.Api.Linq
 
     public static class Q11_CustomerOrderSummaryExample
     {
-        // Q11. Single LINQ query
+        // Q11. Customer Order Summary
         public static List<CustomerOrderSummary> Summarize(List<Order> orders)
         {
             return orders

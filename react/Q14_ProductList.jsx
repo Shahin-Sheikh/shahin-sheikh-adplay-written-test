@@ -1,26 +1,4 @@
-// Q14. React component that renders 1,000,000 products efficiently.
-// Covers: virtualization, infinite scrolling, debounced search,
-// API request cancellation, memoization, error handling, and retry logic.
-//
-// Dependencies (npm install): react-window, react-window-infinite-loader
-//
-// CSS file (add to styles or CSS-in-JS):
-// .product-list-container { max-width: 1200px; margin: 0 auto; }
-// .search-box { padding: 20px; background: #f5f5f5; border-bottom: 1px solid #ddd; }
-// .search-box input { width: 100%; padding: 10px; font-size: 16px; }
-// .product-row { display: flex; justify-content: space-between; align-items: center; 
-//                padding: 12px 20px; border-bottom: 1px solid #eee; }
-// .product-row-skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); 
-//                         background-size: 200% 100%; animation: loading 1.5s infinite; }
-// @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-// .skeleton { height: 16px; border-radius: 4px; background: #ddd; }
-// .error-message { background: #fee; color: #c33; padding: 15px 20px; border-radius: 4px; margin: 10px; }
-// .empty-state, .loading-state { text-align: center; padding: 60px 20px; color: #666; }
-// .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; 
-//            width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
-// @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-// .product-count { text-align: center; padding: 15px; color: #999; font-size: 14px; }
-
+// Q14. React Performance
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import InfiniteLoader from 'react-window-infinite-loader';
@@ -47,7 +25,6 @@ export default function ProductList() {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null); // track fetch errors
-  const [retryCount, setRetryCount] = useState({}); // per-page retry count
 
   const abortControllerRef = useRef(null);
   const loadedPagesRef = useRef(new Set());
@@ -202,10 +179,6 @@ export default function ProductList() {
 
       {totalCount > 0 && (
         <>
-          {/* react-window only mounts DOM nodes for the rows currently visible in
-              the viewport, so rendering cost stays constant whether the list has
-              1,000 or 1,000,000 items. InfiniteLoader calls loadMoreItems as the
-              user scrolls near the edge of what's been fetched. */}
           <InfiniteLoader isItemLoaded={isItemLoaded} itemCount={totalCount || 1} loadMoreItems={loadMoreItems}>
             {({ onItemsRendered, ref }) => (
               <List
