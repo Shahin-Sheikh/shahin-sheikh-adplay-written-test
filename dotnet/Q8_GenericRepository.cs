@@ -8,8 +8,6 @@ using Microsoft.EntityFrameworkCore;
 namespace AdPlay.Api.Data
 {
     // Q8. Generic repository: dynamic filtering, dynamic includes, dynamic sorting,
-    // pagination, projection -- all in a single FindAsync call.
-
     public class PagedResult<T>
     {
         public List<T> Items { get; set; } = new();
@@ -58,7 +56,6 @@ namespace AdPlay.Api.Data
             if (filter != null)
                 query = query.Where(filter);
 
-            // Dynamic includes: "Customer,Product,Product.Brand"
             if (!string.IsNullOrWhiteSpace(includeProperties))
             {
                 foreach (var includeProperty in includeProperties.Split(',', StringSplitOptions.RemoveEmptyEntries))
@@ -67,8 +64,7 @@ namespace AdPlay.Api.Data
 
             var totalCount = await query.CountAsync();
 
-            // Dynamic sorting (caller supplies an IQueryable -> IOrderedQueryable delegate,
-            // typically built with the DynamicSort extension from Q9)
+            // Dynamic sorting
             if (orderBy != null)
                 query = orderBy(query);
 
@@ -77,8 +73,6 @@ namespace AdPlay.Api.Data
                 .Take(pageSize);
 
             // Projection to a DTO to avoid over-fetching columns.
-            // If select is null, TResult MUST be the same type as T or derived from T.
-            // Otherwise, a runtime InvalidCastException will be thrown.
             List<TResult> items;
             if (select != null)
             {
@@ -86,7 +80,7 @@ namespace AdPlay.Api.Data
             }
             else
             {
-                // Only valid if TResult is assignable from T (i.e., T : TResult or T == TResult)
+                // Only valid if TResult is assignable from T
                 if (!typeof(TResult).IsAssignableFrom(typeof(T)))
                     throw new InvalidOperationException(
                         $"Cannot project {typeof(T).Name} to {typeof(TResult).Name} without an explicit select expression. " +
@@ -105,13 +99,3 @@ namespace AdPlay.Api.Data
         }
     }
 }
-
-// Example usage:
-//
-// var result = await _orderRepository.FindAsync(
-//     filter: o => o.CustomerId == customerId && o.Status == "Completed",
-//     orderBy: q => q.OrderByDynamic("Amount desc"),      // see Q9
-//     select: o => new OrderDto { Id = o.Id, Amount = o.Amount, Date = o.OrderDate },
-//     includeProperties: "Customer,Product",
-//     page: 2,
-//     pageSize: 25);
