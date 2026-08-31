@@ -17,8 +17,6 @@ namespace AdPlay.Api.Controllers
     }
 
     // Q13. GET /api/products
-    // Keyword search, price range, multiple categories, multiple brands, sorting,
-    // pagination, total record count -- with EF Core performance optimizations.
     [ApiController]
     [Route("api/products")]
     public class ProductsController : ControllerBase
@@ -43,7 +41,7 @@ namespace AdPlay.Api.Controllers
             [FromQuery] int pageSize = 20)
         {
             // Input validation: prevent DOS and invalid queries
-            pageSize = Math.Clamp(pageSize, 1, 100); // cap page size to protect the server
+            pageSize = Math.Clamp(pageSize, 1, 100);
             page = Math.Max(page, 1);
 
             // Validate price range
@@ -53,20 +51,15 @@ namespace AdPlay.Api.Controllers
             if (minPrice.HasValue && minPrice < 0)
                 return BadRequest(new { error = "minPrice cannot be negative." });
 
-            // Trim and validate keyword length (prevent injection/DOS)
             if (!string.IsNullOrWhiteSpace(keyword))
             {
                 keyword = keyword.Trim();
                 if (keyword.Length > 200)
                     return BadRequest(new { error = "Search keyword must be 200 characters or less." });
 
-                // Basic SQL injection prevention: EF.Functions.Like handles parameterization
-                // but we should still validate input for DOS attacks
                 if (keyword.Count(c => c == '%' || c == '_') > 3)
                     return BadRequest(new { error = "Search keyword contains too many wildcard characters." });
             }
-
-            // Validate category/brand IDs (prevent negative or zero IDs)
             if (categoryIds?.Any(id => id <= 0) == true)
                 return BadRequest(new { error = "Category IDs must be positive integers." });
 
@@ -78,18 +71,6 @@ namespace AdPlay.Api.Controllers
 
             if (!string.IsNullOrWhiteSpace(keyword))
             {
-                // NOTE: leading-wildcard LIKE can't use a normal B-Tree index at scale.
-                // For a catalog with millions of products, prefer a MySQL FULLTEXT
-                // index (MATCH ... AGAINST) or an external search engine:
-                //   - Elasticsearch: Full-text search with relevance ranking
-                //   - Algolia: SaaS solution for search with instant results
-                //   - Azure Cognitive Search: Azure-native search service
-                //
-                // FULLTEXT syntax in EF Core (requires configuration):
-                //   var results = _context.Products
-                //     .FromSqlInterpolated($"SELECT * FROM Products WHERE MATCH(Name, Description) AGAINST({keyword} IN BOOLEAN MODE)")
-                //     .AsEnumerable();
-
                 query = query.Where(p =>
                     EF.Functions.Like(p.Name, $"%{keyword}%") ||
                     EF.Functions.Like(p.Description, $"%{keyword}%"));
@@ -107,10 +88,8 @@ namespace AdPlay.Api.Controllers
             if (brandIds is { Count: > 0 })
                 query = query.Where(p => brandIds.Contains(p.BrandId));
 
-            // Count before paging, on the filtered (but not yet sorted) query.
             var totalCount = await query.CountAsync();
 
-            // Validate sort column (whitelist approach prevents injection)
             query = (sortBy.ToLowerInvariant(), sortDirection.ToLowerInvariant()) switch
             {
                 ("price", "desc") => query.OrderByDescending(p => p.Price),
@@ -118,12 +97,9 @@ namespace AdPlay.Api.Controllers
                 ("name", "desc") => query.OrderByDescending(p => p.Name),
                 ("category", "desc") => query.OrderByDescending(p => p.Category.Name),
                 ("category", _) => query.OrderBy(p => p.Category.Name),
-                _ => query.OrderBy(p => p.Name)  // default: Name ascending
+                _ => query.OrderBy(p => p.Name)  
             };
 
-            // Project directly to the DTO in the SQL SELECT (not after ToListAsync),
-            // so only the needed columns are pulled off the wire, and unrelated
-            // entities (Category, Brand) are joined, not fully materialized.
             var products = await query
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -153,6 +129,3 @@ namespace AdPlay.Api.Controllers
     }
 }
 
-// Recommended indexes for this query shape:
-//   CREATE INDEX IX_Products_CategoryId_BrandId_Price ON Products (CategoryId, BrandId, Price);
-//   CREATE FULLTEXT INDEX FT_Products_Name_Description ON Products (Name, Description);
