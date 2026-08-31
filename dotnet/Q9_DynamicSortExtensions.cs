@@ -6,12 +6,6 @@ using System.Reflection;
 namespace AdPlay.Api.Data
 {
     // Q9. Dynamic sorting extension method using Expression Trees.
-    // Usage:
-    //   query.OrderByDynamic("Name");
-    //   query.OrderByDynamic("Salary desc");
-    //   query.OrderByDynamic("JoiningDate");
-    //   query.OrderByDynamic("Department.Name,Salary desc");   // multi-column
-
     public static class DynamicSortExtensions
     {
         public static IOrderedQueryable<T> OrderByDynamic<T>(this IQueryable<T> source, string sortExpression)
